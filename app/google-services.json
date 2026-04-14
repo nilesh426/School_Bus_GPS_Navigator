@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "432483376612",
+    "project_id": "schoolbusapp-ed7b9",
+    "storage_bucket": "schoolbusapp-ed7b9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:432483376612:android:4d4a647afcf479890fbbf1",
+        "android_client_info": {
+          "package_name": "com.example.schoolbusapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhMKtRG3WQUteWCvbVjEclX1kB0dwL0XU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">SchoolBusApp</string>
+    <string-array name="roles">
+        <item>Parent</item>
+        <item>Driver</item>
+        <item>Admin</item>
+    </string-array>
+    <string-array name="fee_plans">
+        <item>Monthly Plan</item>
+        <item>Quarterly Plan</item>
+        <item>Yearly Plan</item>
+    </string-array>
+
+    <string-array name="fee_statuses">
+        <item>Pending Payment</item>
+        <item>Payment Completed</item>
+    </string-array>
+
+    <string-array name="fee_status">
+        <item>Pending Payment</item>
+        <item>Payment Completed</item>
+    </string-array>
+</resources>
