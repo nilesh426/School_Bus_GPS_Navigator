@@ -20,6 +20,7 @@ class DriverDashboardActivity : AppCompatActivity() {
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var btnManageBoarding: Button
+    private lateinit var btnViewRoute: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvAssignedBus: TextView
 
@@ -51,6 +52,7 @@ class DriverDashboardActivity : AppCompatActivity() {
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
         btnManageBoarding = findViewById(R.id.btnManageBoarding)
+        btnViewRoute = findViewById(R.id.btnViewRoute)
         tvStatus = findViewById(R.id.tvStatus)
         tvAssignedBus = findViewById(R.id.tvAssignedBus)
 
@@ -85,6 +87,10 @@ class DriverDashboardActivity : AppCompatActivity() {
             intent.putExtra("busId", busId)
             startActivity(intent)
         }
+
+        btnViewRoute.setOnClickListener {
+            startActivity(Intent(this, DriverRouteMapActivity::class.java))
+        }
     }
 
     private fun hasLocationPermission(): Boolean {
@@ -103,10 +109,20 @@ class DriverDashboardActivity : AppCompatActivity() {
     }
 
     private fun startSharingService() {
+        android.util.Log.d("DriverDashboard", "===== START SHARING CALLED =====")
+        android.util.Log.d("DriverDashboard", "BUS_ID_FOR_SHARING=$busId")
+        
         val intent = Intent(this, LocationForegroundService::class.java)
         intent.putExtra("busId", busId)
 
         ContextCompat.startForegroundService(this, intent)
+
+        // Also set isSharing flag immediately
+        FirebaseDatabase.getInstance()
+            .getReference("buses")
+            .child(busId)
+            .child("isSharing")
+            .setValue(true)
 
         tvStatus.text = "Status: Sharing live location"
         btnStart.isEnabled = false

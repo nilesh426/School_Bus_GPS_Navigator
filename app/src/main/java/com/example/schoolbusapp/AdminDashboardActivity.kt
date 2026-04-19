@@ -76,6 +76,14 @@ class AdminDashboardActivity : AppCompatActivity() {
             startActivity(Intent(this, AdminMapActivity::class.java))
         }
 
+        findViewById<Button>(R.id.btnManageRoutes).setOnClickListener {
+            startActivity(Intent(this, ManageRoutesActivity::class.java))
+        }
+
+        findViewById<Button>(R.id.btnManageFeePlans).setOnClickListener {
+            startActivity(Intent(this, ManageFeePlansActivity::class.java))
+        }
+
         loadDashboardCountsRealtime()
     }
 

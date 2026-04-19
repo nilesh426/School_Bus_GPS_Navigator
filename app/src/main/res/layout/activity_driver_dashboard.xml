@@ -101,4 +101,18 @@
         android:textSize="15sp"
         android:textStyle="bold" />
 
+    <Button
+        android:id="@+id/btnViewRoute"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/bg_button_purple"
+        android:text="View Route Stops"
+        android:textAllCaps="false"
+        android:textColor="@android:color/white"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
 </LinearLayout>

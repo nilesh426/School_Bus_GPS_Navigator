@@ -12,8 +12,14 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.badge.BadgeDrawable
+import com.google.android.material.badge.BadgeUtils
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -68,11 +74,17 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private var busLocationRef: DatabaseReference? = null
     private var busLocationListener: ValueEventListener? = null
+    private var busStatusListener: ValueEventListener? = null
     private var attendanceListener: ListenerRegistration? = null
+    private var notificationHelper: NotificationHelper? = null
+    private var notificationListener: ListenerRegistration? = null
 
     private var isFirstLocationUpdate = true
+    private var lastSharingStatus: Boolean = false
 
     private val parentStudents = mutableListOf<ParentStudent>()
+    private val notifications = mutableListOf<ParentNotification>()
+    private var notificationBadge: BadgeDrawable? = null
 
     data class ParentStudent(
         val id: String,
@@ -87,10 +99,21 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_parent_dashboard)
 
+        notificationHelper = NotificationHelper(this)
+
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
-        toolbar.inflateMenu(R.menu.menu_dashboard)
+        toolbar.inflateMenu(R.menu.menu_parent_dashboard)
+        updateNotificationIcon()
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.action_notifications -> {
+                    showNotificationsDialog()
+                    true
+                }
+                R.id.action_payment_history -> {
+                    startActivity(Intent(this, PaymentHistoryActivity::class.java))
+                    true
+                }
                 R.id.action_logout -> {
                     FirebaseAuth.getInstance().signOut()
                     val intent = Intent(this, LoginActivity::class.java)
@@ -126,6 +149,15 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         btnRecenterBus.setOnClickListener {
             recenterBusOnMap()
         }
+
+        findViewById<Button>(R.id.btnPayFee).setOnClickListener {
+            startActivity(Intent(this, PaymentActivity::class.java).apply {
+                putExtra("studentId", currentStudentId)
+                putExtra("busId", currentBusId)
+            })
+        }
+
+        setupNotificationListener()
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -210,10 +242,16 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun showStudentDetails(student: ParentStudent) {
+        android.util.Log.d("ParentDashboard", "===== showStudentDetails called =====")
+        android.util.Log.d("ParentDashboard", "Student: ${student.name}")
+        android.util.Log.d("ParentDashboard", "Bus ID: ${student.busId}")
+        android.util.Log.d("ParentDashboard", "Student ID: ${student.id}")
+        
         currentStudentId = student.id
         currentBusId = student.busId
         lastBusTimestamp = 0L
         isFirstLocationUpdate = true
+        lastSharingStatus = false
 
         tvStudentName.text = "Student: ${student.name}"
         tvStudentClass.text = "Class: ${student.studentClass}"
@@ -228,6 +266,7 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         busMarker?.remove()
         busMarker = null
 
+        android.util.Log.d("ParentDashboard", "✓ Starting live tracking...")
         startLiveBusTracking()
         startAttendanceTracking()
     }
@@ -268,8 +307,17 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun startLiveBusTracking() {
         val map = googleMap ?: return
-        if (currentBusId.isBlank()) return
+        if (currentBusId.isBlank()) {
+            android.util.Log.d("ParentDashboard", "Bus ID is blank, cannot start tracking")
+            return
+        }
 
+        android.util.Log.d("ParentDashboard", "===== STARTING LIVE BUS TRACKING =====")
+        android.util.Log.d("ParentDashboard", "Bus ID: $currentBusId")
+        android.util.Log.d("ParentDashboard", "Current User UID: ${FirebaseAuth.getInstance().currentUser?.uid}")
+        android.util.Log.d("ParentDashboard", "Is User Authenticated: ${FirebaseAuth.getInstance().currentUser != null}")
+
+        // Remove old listener
         busLocationListener?.let { listener ->
             busLocationRef?.removeEventListener(listener)
         }
@@ -280,28 +328,84 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
 
         busLocationListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
+                android.util.Log.d("ParentDashboard", "=== onDataChange called for bus: $currentBusId ===")
+                android.util.Log.d("ParentDashboard", "Snapshot exists: ${snapshot.exists()}, children count: ${snapshot.childrenCount}")
+                
+                // Log all children
+                snapshot.children.forEach { child ->
+                    android.util.Log.d("ParentDashboard", "Child key: ${child.key} = ${child.value}")
+                }
+
                 val lat = snapshot.child("lat").getValue(Double::class.java)
                 val lng = snapshot.child("lng").getValue(Double::class.java)
                 val timestamp = snapshot.child("timestamp").getValue(Long::class.java) ?: 0L
 
+                android.util.Log.d("ParentDashboard", "✓ Retrieved - Lat: $lat, Lng: $lng, Timestamp: $timestamp")
+
                 lastBusTimestamp = timestamp
                 updateBusStatusUI()
 
-                if (lat == null || lng == null) return
+                if (lat == null || lng == null) {
+                    android.util.Log.w("ParentDashboard", "⚠ LOCATION IS NULL - lat: $lat, lng: $lng")
+                    android.util.Log.w("ParentDashboard", "Check if driver is sharing location and Firebase rules allow reading")
+                    return
+                }
 
                 val newLocation = LatLng(lat, lng)
+                android.util.Log.d("ParentDashboard", "✓ Updating marker to: $newLocation")
 
                 if (busMarker == null) {
+                    android.util.Log.d("ParentDashboard", "✓ Creating new marker at: $newLocation")
                     busMarker = map.addMarker(
                         MarkerOptions()
                             .position(newLocation)
                             .title("School Bus - $currentBusId")
-                        // .icon(getResizedBusIcon())
                     )
                     map.moveCamera(CameraUpdateFactory.newLatLngZoom(newLocation, 16f))
                     isFirstLocationUpdate = false
                 } else {
+                    android.util.Log.d("ParentDashboard", "✓ Animating marker to: $newLocation")
                     animateMarker(busMarker!!, newLocation)
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                android.util.Log.e("ParentDashboard", "❌ DATABASE ERROR: ${error.message}")
+                android.util.Log.e("ParentDashboard", "Error code: ${error.code}")
+                android.util.Log.e("ParentDashboard", "Error details: ${error.details}")
+            }
+        }
+
+        busLocationRef!!.addValueEventListener(busLocationListener!!)
+        android.util.Log.d("ParentDashboard", "✓ ValueEventListener attached to: buses/$currentBusId")
+        startBusSharingStatusTracking()
+    }
+
+    private fun startBusSharingStatusTracking() {
+        if (currentBusId.isBlank()) return
+
+        busStatusListener?.let { listener ->
+            FirebaseDatabase.getInstance()
+                .getReference("buses")
+                .child(currentBusId)
+                .removeEventListener(listener)
+        }
+
+        busStatusListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val isSharing = snapshot.child("isSharing").getValue(Boolean::class.java) ?: false
+
+                // Show notification only when status changes
+                if (isSharing != lastSharingStatus) {
+                    lastSharingStatus = isSharing
+                    
+                    if (isSharing) {
+                        notificationHelper?.sendBusStartedSharingNotification(currentBusId)
+                        addNotification("Bus $currentBusId started sharing location", System.currentTimeMillis())
+                    } else {
+                        notificationHelper?.sendBusStoppedSharingNotification(currentBusId)
+                        addNotification("Bus $currentBusId stopped sharing location", System.currentTimeMillis())
+                    }
                 }
             }
 
@@ -309,7 +413,10 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
 
-        busLocationRef!!.addValueEventListener(busLocationListener!!)
+        FirebaseDatabase.getInstance()
+            .getReference("buses")
+            .child(currentBusId)
+            .addValueEventListener(busStatusListener!!)
     }
 
     private fun animateMarker(marker: Marker, toPosition: LatLng) {
@@ -379,6 +486,77 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
         return BitmapDescriptorFactory.fromBitmap(smallBitmap)
     }
 
+    private fun showNotificationsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_notifications, null)
+        val rvNotifications = dialogView.findViewById<RecyclerView>(R.id.rvNotifications)
+
+        var adapter: ParentNotificationAdapter? = null
+        adapter = ParentNotificationAdapter(notifications) { notification ->
+            // Dismiss notification
+            notifications.remove(notification)
+            adapter?.notifyDataSetChanged()
+            updateNotificationIcon()
+        }
+
+        rvNotifications.layoutManager = LinearLayoutManager(this)
+        rvNotifications.adapter = adapter
+
+        AlertDialog.Builder(this)
+            .setTitle("Notifications")
+            .setView(dialogView)
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
+    private fun updateNotificationIcon() {
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        
+        if (notificationBadge == null) {
+            notificationBadge = BadgeDrawable.create(this)
+            notificationBadge!!.backgroundColor = resources.getColor(R.color.colorAccent, null)
+        }
+        
+        if (notifications.isNotEmpty()) {
+            notificationBadge!!.isVisible = true
+            notificationBadge!!.number = notifications.size
+            BadgeUtils.attachBadgeDrawable(notificationBadge!!, toolbar, R.id.action_notifications)
+        } else {
+            notificationBadge!!.isVisible = false
+        }
+    }
+
+    private fun addNotification(text: String, timestamp: Long) {
+        val notification = ParentNotification(
+            id = System.currentTimeMillis().toString(),
+            text = text,
+            timestamp = timestamp
+        )
+        notifications.add(notification)
+        updateNotificationIcon()
+    }
+
+    private fun setupNotificationListener() {
+        val parentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        notificationListener?.remove()
+        notificationListener = firestore.collection("users")
+            .document(parentUid)
+            .collection("notifications")
+            .orderBy("timestamp")
+            .addSnapshotListener { snapshots, _ ->
+                if (snapshots != null) {
+                    for (doc in snapshots.documentChanges) {
+                        val data = doc.document.data
+                        val text = data["text"] as? String ?: continue
+                        val timestamp = (data["timestamp"] as? Number)?.toLong() ?: continue
+                        // Avoid duplicates
+                        if (notifications.none { it.text == text && it.timestamp == timestamp }) {
+                            addNotification(text, timestamp)
+                        }
+                    }
+                }
+            }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
 
@@ -388,6 +566,14 @@ class ParentDashboardActivity : AppCompatActivity(), OnMapReadyCallback {
             busLocationRef?.removeEventListener(listener)
         }
 
+        busStatusListener?.let { listener ->
+            FirebaseDatabase.getInstance()
+                .getReference("buses")
+                .child(currentBusId)
+                .removeEventListener(listener)
+        }
+
         attendanceListener?.remove()
+        notificationListener?.remove()
     }
 }

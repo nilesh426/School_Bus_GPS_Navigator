@@ -76,12 +76,21 @@ class ManageBoardingActivity : AppCompatActivity() {
                 .setTitle("Drop All Students")
                 .setMessage("Are you sure you want to mark all students as dropped?")
                 .setPositiveButton("Yes") { _, _ ->
-                    students.forEach { student ->
-                        if (student.boarded && !student.dropped) {
-                            markDropped(student, false)
+                    val toDrop = students.filter { it.boarded && !it.dropped }
+                    if (toDrop.isEmpty()) {
+                        Toast.makeText(this, "No students to drop", Toast.LENGTH_SHORT).show()
+                        return@setPositiveButton
+                    }
+                    var completed = 0
+                    val total = toDrop.size
+                    toDrop.forEach { student ->
+                        markDropped(student, false) {
+                            completed++
+                            if (completed == total) {
+                                Toast.makeText(this, "All students marked dropped", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
-                    Toast.makeText(this, "All students marked dropped", Toast.LENGTH_SHORT).show()
                 }
                 .setNegativeButton("No", null)
                 .show()
@@ -120,6 +129,8 @@ class ManageBoardingActivity : AppCompatActivity() {
 
     private fun loadTodayAttendanceStatuses() {
         val today = getTodayDate()
+        var loadedCount = 0
+        val total = students.size
 
         students.forEach { student ->
             val docId = "${student.id}_$today"
@@ -134,11 +145,19 @@ class ManageBoardingActivity : AppCompatActivity() {
                         student.boardedAt = doc.getLong("boardedAt")
                         student.droppedAt = doc.getLong("droppedAt")
                     }
-                    adapter.notifyDataSetChanged()
+                    
+                    loadedCount++
+                    // Update UI only once after all data is loaded
+                    if (loadedCount == total) {
+                        adapter.notifyDataSetChanged()
+                    }
                 }
         }
 
-        adapter.notifyDataSetChanged()
+        // Show initial UI while loading
+        if (total == 0) {
+            adapter.notifyDataSetChanged()
+        }
     }
 
     private fun markBoarded(student: BoardingStudent, showToast: Boolean = true) {
@@ -173,7 +192,7 @@ class ManageBoardingActivity : AppCompatActivity() {
             }
     }
 
-    private fun markDropped(student: BoardingStudent, showToast: Boolean = true) {
+    private fun markDropped(student: BoardingStudent, showToast: Boolean = true, onComplete: (() -> Unit)? = null) {
         val today = getTodayDate()
         val now = System.currentTimeMillis()
         val docId = "${student.id}_$today"
@@ -195,13 +214,14 @@ class ManageBoardingActivity : AppCompatActivity() {
                 student.dropped = true
                 student.droppedAt = now
                 adapter.notifyDataSetChanged()
-
                 if (showToast) {
                     Toast.makeText(this, "${student.name} marked dropped", Toast.LENGTH_SHORT).show()
                 }
+                onComplete?.invoke()
             }
-           .addOnFailureListener { e ->
+            .addOnFailureListener { e ->
                 Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_LONG).show()
+                onComplete?.invoke()
             }
     }
 

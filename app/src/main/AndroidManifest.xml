@@ -2,11 +2,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- INTERNET -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- LOCATION -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- FIX ADDED: Required for background tracking -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+
+    <!-- FOREGROUND SERVICE -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- ANDROID 13+ NOTIFICATIONS -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -17,11 +28,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.SchoolBusApp">
+
         <activity
             android:name=".AddRouteActivity"
             android:exported="false" />
         <activity
-            android:name=".ManageBoardingActivity"
+            android:name=".ManageRoutesActivity"
+            android:exported="false" />
+        <activity
+            android:name=".EditRouteActivity"
             android:exported="false" />
         <activity
             android:name=".ManageBoardingActivity"
@@ -31,7 +46,6 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -39,22 +53,10 @@
             android:name=".EditStudentActivity"
             android:exported="false" />
         <activity
-            android:name=".EditStudentActivity"
-            android:exported="false" />
-        <activity
-            android:name=".AdminMapActivity"
-            android:exported="false" />
-        <activity
             android:name=".AdminMapActivity"
             android:exported="false" />
         <activity
             android:name=".ViewBusesActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ViewBusesActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ViewStudentsActivity"
             android:exported="false" />
         <activity
             android:name=".ViewStudentsActivity"
@@ -78,7 +80,19 @@
             android:name=".AdminDashboardActivity"
             android:exported="false" />
         <activity
+            android:name=".ManageFeePlansActivity"
+            android:exported="false" />
+        <activity
+            android:name=".PaymentActivity"
+            android:exported="false" />
+        <activity
+            android:name=".PaymentHistoryActivity"
+            android:exported="false" />
+        <activity
             android:name=".DriverDashboardActivity"
+            android:exported="false" />
+        <activity
+            android:name=".DriverRouteMapActivity"
             android:exported="false" />
         <activity
             android:name=".ParentDashboardActivity"
@@ -87,14 +101,17 @@
             android:name=".MainActivity"
             android:exported="true" />
 
+        <!-- ⚠️ IMPORTANT: Replace with secured API key later -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyArZRF0VSvsMa9_i2s5pPx1v8wRHDTzv1s" />
 
+        <!-- FOREGROUND LOCATION SERVICE -->
         <service
             android:name=".LocationForegroundService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
     </application>
 
 </manifest>
